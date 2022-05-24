@@ -482,6 +482,11 @@ public:
    */
   std::size_t GetNQueueDiscClasses (void) const;
 
+  /**
+   * @brief Get the Peek Type of the Queue Disc
+   * @return true when qdisc specific behavious is set
+   * @return false when Linux peek behaviour is set
+   */
   bool GetPeekType(void);
 
   /**

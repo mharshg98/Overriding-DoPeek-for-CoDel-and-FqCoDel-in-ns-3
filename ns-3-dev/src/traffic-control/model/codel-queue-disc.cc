@@ -167,138 +167,6 @@ CoDelQueueDisc::ControlLaw (uint32_t t, uint32_t interval, uint32_t recInvSqrt)
   return t + ReciprocalDivide (interval, recInvSqrt << REC_INV_SQRT_SHIFT);
 }
 
-Ptr<const QueueDiscItem>
-CoDelQueueDisc::DoPeek (void)
-{ 
-  NS_LOG_FUNCTION(this);
-
-  // Getting all the status of the current CoDel state
-  bool peek_dropping = m_dropping;
-  uint32_t peek_count = m_count;
-  uint16_t peek_recInvSqrt = m_recInvSqrt;
-  uint32_t peek_dropNext = m_dropNext;
-  uint32_t peek_lastCount = m_lastCount;
-  uint32_t peek_firstAboveTime = m_firstAboveTime;
-  uint32_t peeked_bytes = 0;
-  int in_peekedPackets = peek_queueBuffer->GetCurrentSize().GetValue();
-
-  // Runs the CoDel algorithm on the peek queues without effecting the internal queue
-  Ptr<QueueDiscItem> item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue() : peek_queue->Dequeue();
-  if(item)
-    peeked_bytes+=item->GetSize();
-
-  if (!item)
-    {
-      // Leave dropping state when queue is empty
-      peek_dropping = false;
-      NS_LOG_LOGIC ("Queue empty");
-      return 0;
-    }
-
-  uint32_t now = CoDelGetTime ();
-
-  // Determine if item should be dropped
-  bool okToDrop = OkToDrop (item, now, peeked_bytes);
-  bool isMarked = false;
-
-  if (peek_dropping)
-    { // In the dropping state (sojourn time has gone above target and hasn't come down yet)
-      // Check if we can leave the dropping state or next drop should occur
-      if (!okToDrop)
-        {
-          /* sojourn time fell below target - leave dropping state */
-          peek_dropping = false;
-        }
-      else if (CoDelTimeAfterEq (now, peek_dropNext))
-        {
-          while (peek_dropping && CoDelTimeAfterEq (now, peek_dropNext))
-            {
-              ++peek_count;
-              peek_recInvSqrt = NewtonStep (peek_recInvSqrt, peek_count);
-              // It's time for the next drop. Drop the current packet and
-              // dequeue the next. The dequeue might take us out of dropping
-              // state. If not, schedule the next drop.
-              // A large amount of packets in queue might result in drop
-              // rates so high that the next drop should happen now,
-              // hence the while loop.
-              if (m_useEcn && item->Mark())
-                {
-                  isMarked = true;
-                  peek_dropNext = ControlLaw (now, Time2CoDel (m_interval), peek_recInvSqrt);
-                  goto end;
-                }
-              in_peekedPackets--;
-              peek_queueBuffer->Enqueue(item);
-
-              item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue() : peek_queue->Dequeue();
-              if(item)
-                peeked_bytes+=item->GetSize();
-
-              if (!OkToDrop (item, now, peeked_bytes))
-                {
-                  /* leave dropping state */
-                  peek_dropping = false;
-                }
-              else
-                {
-                  /* schedule the next drop */
-                  peek_dropNext = ControlLaw (peek_dropNext, Time2CoDel (m_interval), peek_recInvSqrt);
-                }
-            }
-        }
-    }
-    else
-    {
-      // Not in the dropping state
-      // Decide if we have to enter the dropping state and drop the first packet
-      if (okToDrop)
-        {
-          if (m_useEcn && item->Mark())
-            {
-              isMarked = true;
-            }  
-          else
-            {
-              // Drop the first packet and enter dropping state unless the queue is empty
-              in_peekedPackets--;
-              peek_queueBuffer->Enqueue(item);
-
-              item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue() : peek_queue->Dequeue();
-              if(item)
-                peeked_bytes+=item->GetSize();
-
-              OkToDrop (item, now, peeked_bytes);
-            }
-          peek_dropping = true;
-          /*
-           * if min went above target close to when we last went below it
-           * assume that the drop rate that controlled the queue on the
-           * last cycle is a good starting point to control it now.
-           */
-          int delta = peek_count - peek_lastCount;
-          if (delta > 1 && CoDelTimeBefore (now - peek_dropNext, 16 * Time2CoDel (m_interval)))
-            {
-              peek_count = delta;
-              peek_recInvSqrt = NewtonStep (peek_recInvSqrt, peek_count);
-            }
-          else
-            {
-              peek_count = 1;
-              peek_recInvSqrt = ~0U >> REC_INV_SQRT_SHIFT;
-            }
-          peek_lastCount = peek_count;
-          peek_dropNext = ControlLaw (now, Time2CoDel (m_interval), peek_recInvSqrt);
-        }  
-    }
-    end:
-
-    // Preserving the previous states
-    m_firstAboveTime = peek_firstAboveTime;
-    peek_queueBuffer->Enqueue(item);
-  
-    return item;
-}
-
 bool
 CoDelQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
 {
@@ -312,10 +180,10 @@ CoDelQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
     }
 
   bool retval = GetInternalQueue (0)->Enqueue (item);
-  if(retval && GetPeekType())
+  if(retval && GetPeekType ())
     {
       // Enqueue packets in peek_queue when Queue::Enqueue is sucessfull
-      peek_queue->Enqueue(item);
+      peek_queue->Enqueue (item);
     }
 
   // If Queue::Enqueue fails, QueueDisc::DropBeforeEnqueue is called by the
@@ -374,9 +242,9 @@ CoDelQueueDisc::DoDequeue (void)
   NS_LOG_FUNCTION (this);
 
   Ptr<QueueDiscItem> item = GetInternalQueue (0)->Dequeue ();
-  // Simultenously dequeue from peek queues to sync with original queue
-  if(GetPeekType())
-    (peek_queueBuffer->IsEmpty())? peek_queue->Dequeue() : peek_queueBuffer->Dequeue();
+  // Simultenously dequeue from peek queues to sync with original internal queue
+  if(GetPeekType ())
+    (peek_queueBuffer->IsEmpty ())? peek_queue->Dequeue () : peek_queueBuffer->Dequeue ();
 
   if (!item)
     {
@@ -454,8 +322,8 @@ CoDelQueueDisc::DoDequeue (void)
 
               item = GetInternalQueue (0)->Dequeue ();
               // Simultenously dequeue from peek queues to sync with original queue
-              if(GetPeekType())
-                (peek_queueBuffer->IsEmpty())? peek_queue->Dequeue() : peek_queueBuffer->Dequeue();
+              if(GetPeekType ())
+                (peek_queueBuffer->IsEmpty ())? peek_queue->Dequeue () : peek_queueBuffer->Dequeue ();
 
               if (item)
                 {
@@ -499,8 +367,9 @@ CoDelQueueDisc::DoDequeue (void)
               DropAfterDequeue (item, TARGET_EXCEEDED_DROP);
               item = GetInternalQueue (0)->Dequeue ();
               // Simultenously dequeue from peek queues to sync with original queue
-              if(GetPeekType())
-                (peek_queueBuffer->IsEmpty())? peek_queue->Dequeue() : peek_queueBuffer->Dequeue();
+              if(GetPeekType ())
+                (peek_queueBuffer->IsEmpty ())? peek_queue->Dequeue () : peek_queueBuffer->Dequeue ();
+
               if (item)
                 {
                   NS_LOG_LOGIC ("Popped " << item);
@@ -542,6 +411,138 @@ CoDelQueueDisc::DoDequeue (void)
     {
       NS_LOG_LOGIC ("Marking due to CeThreshold " << m_ceThreshold.GetSeconds ());
     }
+  return item;
+}
+
+Ptr<const QueueDiscItem>
+CoDelQueueDisc::DoPeek (void)
+{ 
+  NS_LOG_FUNCTION (this);
+
+  // Getting all the status of the current CoDel state
+  bool peek_dropping = m_dropping;
+  uint32_t peek_count = m_count;
+  uint16_t peek_recInvSqrt = m_recInvSqrt;
+  uint32_t peek_dropNext = m_dropNext;
+  uint32_t peek_lastCount = m_lastCount;
+  uint32_t peek_firstAboveTime = m_firstAboveTime;
+  uint32_t peeked_bytes = 0;
+  int32_t in_peekedPackets = peek_queueBuffer->GetCurrentSize ().GetValue ();
+
+  // Runs the CoDel algorithm on the peek queues without effecting the internal queue
+  Ptr<QueueDiscItem> item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue () : peek_queue->Dequeue ();
+  if(item)
+    peeked_bytes+=item->GetSize ();
+
+  if (!item)
+    {
+      // Leave dropping state when queue is empty
+      peek_dropping = false;
+      NS_LOG_LOGIC ("Queue empty");
+      return 0;
+    }
+
+  uint32_t now = CoDelGetTime ();
+
+  // Determine if item should be dropped
+  bool okToDrop = OkToDrop (item, now, peeked_bytes);
+  bool isMarked = false;
+
+  if (peek_dropping)
+    { // In the dropping state (sojourn time has gone above target and hasn't come down yet)
+      // Check if we can leave the dropping state or next drop should occur
+      if (!okToDrop)
+        {
+          /* sojourn time fell below target - leave dropping state */
+          peek_dropping = false;
+        }
+      else if (CoDelTimeAfterEq (now, peek_dropNext))
+        {
+          while (peek_dropping && CoDelTimeAfterEq (now, peek_dropNext))
+            {
+              ++peek_count;
+              peek_recInvSqrt = NewtonStep (peek_recInvSqrt, peek_count);
+              // It's time for the next drop. Drop the current packet and
+              // dequeue the next. The dequeue might take us out of dropping
+              // state. If not, schedule the next drop.
+              // A large amount of packets in queue might result in drop
+              // rates so high that the next drop should happen now,
+              // hence the while loop.
+              if (m_useEcn && item->Mark ())
+                {
+                  isMarked = true;
+                  peek_dropNext = ControlLaw (now, Time2CoDel (m_interval), peek_recInvSqrt);
+                  goto end;
+                }
+              in_peekedPackets--;
+              peek_queueBuffer->Enqueue (item);
+
+              item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue () : peek_queue->Dequeue ();
+              if(item)
+                peeked_bytes+=item->GetSize ();
+
+              if (!OkToDrop (item, now, peeked_bytes))
+                {
+                  /* leave dropping state */
+                  peek_dropping = false;
+                }
+              else
+                {
+                  /* schedule the next drop */
+                  peek_dropNext = ControlLaw (peek_dropNext, Time2CoDel (m_interval), peek_recInvSqrt);
+                }
+            }
+        }
+    }
+  else
+    {
+      // Not in the dropping state
+      // Decide if we have to enter the dropping state and drop the first packet
+      if (okToDrop)
+        {
+          if (m_useEcn && item->Mark ())
+            {
+              isMarked = true;
+            }  
+          else
+            {
+              // Drop the first packet and enter dropping state unless the queue is empty
+              in_peekedPackets--;
+              peek_queueBuffer->Enqueue (item);
+
+              item = (in_peekedPackets > 0)? peek_queueBuffer->Dequeue () : peek_queue->Dequeue ();
+              if(item)
+                peeked_bytes+=item->GetSize ();
+
+              OkToDrop (item, now, peeked_bytes);
+            }
+          peek_dropping = true;
+          /*
+           * if min went above target close to when we last went below it
+           * assume that the drop rate that controlled the queue on the
+           * last cycle is a good starting point to control it now.
+           */
+          int delta = peek_count - peek_lastCount;
+          if (delta > 1 && CoDelTimeBefore (now - peek_dropNext, 16 * Time2CoDel (m_interval)))
+            {
+              peek_count = delta;
+              peek_recInvSqrt = NewtonStep (peek_recInvSqrt, peek_count);
+            }
+          else
+            {
+              peek_count = 1;
+              peek_recInvSqrt = ~0U >> REC_INV_SQRT_SHIFT;
+            }
+          peek_lastCount = peek_count;
+          peek_dropNext = ControlLaw (now, Time2CoDel (m_interval), peek_recInvSqrt);
+        }  
+    }
+  end:
+
+  // Preserving the previous states
+  m_firstAboveTime = peek_firstAboveTime;
+  peek_queueBuffer->Enqueue (item);
+
   return item;
 }
 
@@ -614,13 +615,14 @@ CoDelQueueDisc::CheckConfig (void)
       // add a DropTail queue
       AddInternalQueue (CreateObjectWithAttributes<DropTailQueue<QueueDiscItem> >
                           ("MaxSize", QueueSizeValue (GetMaxSize ())));
-      if(GetPeekType())
-      {
-        peek_queue = CreateObjectWithAttributes<DropTailQueue<QueueDiscItem>>
-                            ("MaxSize", QueueSizeValue (GetMaxSize())); 
-        peek_queueBuffer = CreateObjectWithAttributes<DropTailQueue<QueueDiscItem>>
-                            ("MaxSize", QueueSizeValue (GetMaxSize()));
-      }   
+      // If CoDel Peek is used initialize the peek queues
+      if(GetPeekType ())
+        {
+          peek_queue = CreateObjectWithAttributes<DropTailQueue<QueueDiscItem>>
+                              ("MaxSize", QueueSizeValue (GetMaxSize())); 
+          peek_queueBuffer = CreateObjectWithAttributes<DropTailQueue<QueueDiscItem>>
+                              ("MaxSize", QueueSizeValue (GetMaxSize()));
+        }   
     }
 
   if (GetNInternalQueues () != 1)

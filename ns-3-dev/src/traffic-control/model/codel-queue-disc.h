@@ -127,6 +127,14 @@ private:
    */
   virtual Ptr<QueueDiscItem> DoDequeue (void);
 
+  /**
+   * @brief Mimic the behaviour of DoDequeue on peek_queue and peek_queueBuffer
+   * such that Internal queue is not effected, and also correctly returns the element
+   * which CoDel Queue Disc is going to extract.
+   * Also the packets is retained in peek_queueBuffer untill DoDequeue is called, for 
+   * any subsequent Peek operation
+   * @return The packet that queue-disc will extract at current time
+   */
   virtual Ptr<const QueueDiscItem> DoPeek (void);
 
   virtual bool CheckConfig (void);

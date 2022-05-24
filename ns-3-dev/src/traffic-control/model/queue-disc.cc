@@ -283,8 +283,8 @@ TypeId QueueDisc::GetTypeId (void)
                    MakeObjectVectorChecker<QueueDiscClass> ())
     .AddAttribute("PeekFunction",
                   "Specifies the type of Peek function it is going to use",
-                  BooleanValue(false),
-                  MakeBooleanAccessor(&QueueDisc::m_peekType),
+                  BooleanValue (true),
+                  MakeBooleanAccessor (&QueueDisc::m_peekType),
                   MakeBooleanChecker ())
     .AddTraceSource ("Enqueue", "Enqueue a packet in the queue disc",
                      MakeTraceSourceAccessor (&QueueDisc::m_traceEnqueue),
@@ -941,7 +941,7 @@ QueueDisc::Peek (void)
   NS_LOG_FUNCTION (this);
   if(!m_peekType)
     {
-      return QueueDisc::DoPeek();
+      return QueueDisc::DoPeek ();
     }
   else
     {
