@@ -154,9 +154,9 @@ FqCoDelPeekTest::DoRun()
   queue->Initialize ();
 
   Enqueue(queue, pktSize, 5, 0);
-  NS_LOG_UNCOND("Enqueue packets of 0 Protocol Done");
+  NS_LOG_UNCOND("Enqueue packets of Protocol(0) Done");
   Enqueue(queue, pktSize, 5, 1);
-  NS_LOG_UNCOND("Enqueue packets of 1 Protocol Done");
+  NS_LOG_UNCOND("Enqueue packets of Protocol(1) Done");
 
   Time firstDequeueTime = 2 * Target;
   Simulator::Schedule(firstDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
@@ -171,7 +171,15 @@ FqCoDelPeekTest::DoRun()
   
   // Extra Dequeues
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Peek, this, queue);
 
+  nextDequeueTime = nextDequeueTime + 2 * Interval;
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Peek, this, queue);
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
+
+  // Decaying the flows
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
 
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTest::Dequeue, this, queue);
@@ -208,9 +216,12 @@ FqCoDelPeekTest::Dequeue(Ptr<FqCoDelQueueDisc> queue)
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   NS_LOG_UNCOND("At " << time << "ms Dequeue");
-  NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if(item)
+    {
+      NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+    }
 }
 
 void
@@ -225,9 +236,12 @@ FqCoDelPeekTest::Peek(Ptr<FqCoDelQueueDisc> queue){
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   NS_LOG_UNCOND("At " << time << "ms Peek");
-  NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if(item)
+    {
+      NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+    }
 }
 
 
@@ -287,9 +301,9 @@ FqCoDelPeekTestMark::DoRun()
   queue->Initialize ();
 
   Enqueue(queue, pktSize, 5, 0);
-  NS_LOG_UNCOND("Enqueue packets of 0 Protocol Done");
+  NS_LOG_UNCOND("Enqueue packets of Protocol(0) Done");
   Enqueue(queue, pktSize, 5, 1);
-  NS_LOG_UNCOND("Enqueue packets of 1 Protocol Done");
+  NS_LOG_UNCOND("Enqueue packets of Protocol(1) Done");
 
   Time firstDequeueTime = 2 * Target;
   Simulator::Schedule(firstDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
@@ -304,7 +318,15 @@ FqCoDelPeekTestMark::DoRun()
   
   // Extra Dequeues
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Peek, this, queue);
 
+  nextDequeueTime = nextDequeueTime + 2 * Interval;
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Peek, this, queue);
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
+
+  // Decaying the flows
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
 
   Simulator::Schedule(nextDequeueTime, &FqCoDelPeekTestMark::Dequeue, this, queue);
@@ -324,7 +346,7 @@ FqCoDelPeekTestMark::Enqueue(Ptr<FqCoDelQueueDisc> queue, uint32_t pktSize, uint
   for (uint32_t i = 0; i < nPkt; i++)
     {
         Ptr<Packet> p = Create<Packet>(pktSize);
-        queue->Enqueue(Create<FqCodelQueueDiscTestItem>(p, addr, protocol, false));
+        queue->Enqueue(Create<FqCodelQueueDiscTestItem>(p, addr, protocol, true));
     }
 }
 
@@ -334,16 +356,21 @@ FqCoDelPeekTestMark::Dequeue(Ptr<FqCoDelQueueDisc> queue)
   uint64_t time = Simulator::Now().GetMilliSeconds();
   uint32_t beforeSize = queue->GetCurrentSize().GetValue();
   uint32_t beforeDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
+  uint32_t beforeMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   Ptr<QueueDiscItem> item = queue->Dequeue();
   m_peeked = false;
   if(item==0)
     NS_LOG_UNCOND("Queue Empty");
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
+  uint32_t afterMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   NS_LOG_UNCOND("At " << time << "ms Dequeue");
-  NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if(item)
+    {
+      NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped after  - " << afterDroppedDequeue << " | Packets marked after  - " << afterMarked << std::endl);
+    }
 }
 
 void
@@ -352,16 +379,21 @@ FqCoDelPeekTestMark::Peek(Ptr<FqCoDelQueueDisc> queue)
   uint64_t time = Simulator::Now().GetMilliSeconds();
   uint32_t beforeSize = queue->GetCurrentSize().GetValue();
   uint32_t beforeDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
+  uint32_t beforeMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   Ptr<const QueueDiscItem> item = queue->Peek();
   m_peeked = true;
   if(item==0)
     NS_LOG_UNCOND("Queue Empty");
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
+  uint32_t afterMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   NS_LOG_UNCOND("At " << time << "ms Peek");
-  NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if(item)
+    {
+      NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
+      NS_LOG_UNCOND("Queue Size after - " << afterSize << " | Packets Dropped after - " << afterDroppedDequeue << " | Packets marked after - " << afterMarked << std::endl);
+    }
 }
 
 
