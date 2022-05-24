@@ -146,9 +146,19 @@ CoDelPeekTest::DoRun(){
   Simulator::Schedule(firstDequeueTime, &CoDelPeekTest::Peek, this, queue);
 
   Time nextDequeueTime = firstDequeueTime + 2 * queue->GetInterval();
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Peek, this, queue);
   Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Dequeue, this, queue);
 
   Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Dequeue, this, queue);
+
+  // Decay the queue
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Peek, this, queue);
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Dequeue, this, queue);
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTest::Peek, this, queue);
 
   Simulator::Run();
   Simulator::Destroy();
@@ -175,9 +185,12 @@ CoDelPeekTest::Dequeue(Ptr<CoDelQueueDisc> queue){
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   NS_LOG_UNCOND("At " << time << "ms Dequeue");
-  NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if (item)
+    {
+      NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+    }
 }
 
 void
@@ -192,9 +205,12 @@ CoDelPeekTest::Peek(Ptr<CoDelQueueDisc> queue){
   uint32_t afterSize = queue->GetCurrentSize().GetValue();
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   NS_LOG_UNCOND("At " << time << "ms Peek");
-  NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+  if (item) 
+    {
+      NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped Before - " << beforeDroppedDequeue);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped After  - " << afterDroppedDequeue << std::endl);
+    }
 }
 
 
@@ -250,6 +266,15 @@ CoDelPeekTestMark::DoRun(){
 
   Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Dequeue, this, queue);
 
+  // Decay the queue
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Peek, this, queue);
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Dequeue, this, queue);
+
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Dequeue, this, queue);
+  Simulator::Schedule(nextDequeueTime, &CoDelPeekTestMark::Peek, this, queue);
+
   Simulator::Run();
   Simulator::Destroy();
 }
@@ -277,9 +302,12 @@ CoDelPeekTestMark::Dequeue(Ptr<CoDelQueueDisc> queue){
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   uint32_t afterMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   NS_LOG_UNCOND("At " << time << "ms Dequeue");
-  NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
-  NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped after  - " << afterDroppedDequeue << " | Packets marked after  - " << afterMarked << std::endl);
+  if (item)
+    {
+      NS_LOG_UNCOND("Packet id Dequeued " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
+      NS_LOG_UNCOND("Queue Size after  - " << afterSize << " | Packets Dropped after  - " << afterDroppedDequeue << " | Packets marked after  - " << afterMarked << std::endl);
+    }
 }
 
 void
@@ -296,21 +324,24 @@ CoDelPeekTestMark::Peek(Ptr<CoDelQueueDisc> queue){
   uint32_t afterDroppedDequeue = queue->GetStats().GetNDroppedPackets(CoDelQueueDisc::TARGET_EXCEEDED_DROP);
   uint32_t afterMarked = queue->GetStats().GetNMarkedPackets(CoDelQueueDisc::TARGET_EXCEEDED_MARK);
   NS_LOG_UNCOND("At " << time << "ms Peek");
-  NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
-  NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
-  NS_LOG_UNCOND("Queue Size after - " << afterSize << " | Packets Dropped after - " << afterDroppedDequeue << " | Packets marked after - " << afterMarked << std::endl);
+  if (item)
+    {
+      NS_LOG_UNCOND("Packet id Peeked " << item->GetPacket()->GetUid());
+      NS_LOG_UNCOND("Queue Size before - " << beforeSize << " | Packets Dropped before - " << beforeDroppedDequeue << " | Packets marked before - " << beforeMarked);
+      NS_LOG_UNCOND("Queue Size after - " << afterSize << " | Packets Dropped after - " << afterDroppedDequeue << " | Packets marked after - " << afterMarked << std::endl);
+    }
 }
 
 
 int main(){
-    NS_LOG_UNCOND("------------------------------");
-    NS_LOG_UNCOND("Test for CoDel without Marking");
-    NS_LOG_UNCOND("------------------------------");
+    NS_LOG_UNCOND("+------------------------------+");
+    NS_LOG_UNCOND("|Test for CoDel without Marking|");
+    NS_LOG_UNCOND("+------------------------------+");
     CoDelPeekTest gp(QueueSizeUnit::PACKETS);
     gp.DoRun();
-    NS_LOG_UNCOND("-------------------------------------");
-    NS_LOG_UNCOND("Test for CoDel with Marking(only ECN)");
-    NS_LOG_UNCOND("-------------------------------------");
+    NS_LOG_UNCOND("+-------------------------------------+");
+    NS_LOG_UNCOND("|Test for CoDel with Marking(only ECN)|");
+    NS_LOG_UNCOND("+-------------------------------------+");
     CoDelPeekTestMark gm(QueueSizeUnit::PACKETS);
     gm.DoRun();
     return 0;
