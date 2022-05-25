@@ -95,9 +95,20 @@ public:
    * \return the index of this flow
    */
   uint32_t GetIndex (void) const;
+  /**
+   * \brief Set the peek deficit for this flow
+   * \param deficit the deficit for this flow
+   */
+  void SetPeekDeficit (int32_t deficit);
+  /**
+   * \brief Get the peekDeficit for this flow
+   * \return peekDeficit of this flow
+   */
+  int32_t GetPeekDeficit (void) const;
 
 private:
   int32_t m_deficit;    //!< the deficit for this flow
+  int32_t m_peekDeficit;    //!< the deficit for the peeked flows
   FlowStatus m_status;  //!< the status of this flow
   uint32_t m_index;     //!< the index for this flow
 };
@@ -146,6 +157,7 @@ private:
   virtual Ptr<QueueDiscItem> DoDequeue (void);
   virtual bool CheckConfig (void);
   virtual void InitializeParams (void);
+  virtual Ptr<const QueueDiscItem> DoPeek (void);
 
   /**
    * \brief Drop a packet from the head of the queue with the largest current byte count

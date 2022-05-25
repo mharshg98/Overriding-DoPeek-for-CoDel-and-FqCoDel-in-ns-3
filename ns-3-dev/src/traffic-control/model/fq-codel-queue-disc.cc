@@ -103,6 +103,18 @@ FqCoDelFlow::GetIndex (void) const
   return m_index;
 }
 
+void 
+FqCoDelFlow::SetPeekDeficit (int32_t deficit)
+{
+  NS_LOG_FUNCTION (this);
+  m_peekDeficit = deficit;
+}
+
+int32_t
+FqCoDelFlow::GetPeekDeficit (void) const
+{
+  return m_peekDeficit;
+}
 
 NS_OBJECT_ENSURE_REGISTERED (FqCoDelQueueDisc);
 
@@ -389,6 +401,83 @@ FqCoDelQueueDisc::DoDequeue (void)
   return item;
 }
 
+Ptr<const QueueDiscItem>
+FqCoDelQueueDisc::DoPeek (void)
+{
+  Ptr<FqCoDelFlow> pFlow;
+  std::list<Ptr<FqCoDelFlow>> peekedFlows;
+
+  // Return 0 if no non-empty flow is present directly
+  if(m_newFlows.size () == 0 && m_oldFlows.size () == 0)
+    {
+      return 0;
+    }
+  // If new flows are present traverse them
+  else if(m_newFlows.size () > 0)
+    {
+      for(auto pFlow : m_newFlows)
+        {
+          // If current decifit is negative push it in peekedFlows increasing its peekDeficit
+          // If current deficit is non-negative peek from it, but if no elemnt is 
+          // obtained push it in peekedFlows 
+          if(pFlow->GetDeficit () <= 0)
+            {
+              pFlow->SetPeekDeficit (pFlow->GetDeficit () + m_quantum);
+              peekedFlows.push_back (pFlow);
+            }
+          else
+            {
+              Ptr<const QueueDiscItem> item = pFlow->GetQueueDisc ()->Peek (); 
+              if(item)
+                  return item;
+              else 
+                peekedFlows.push_back (pFlow);
+            }
+        }
+    }
+  // It old flows are present traverse them 
+  else if(m_oldFlows.size () > 0)
+    {
+      for(auto pFlow : m_oldFlows)
+        {
+          // If current decifit is negative push it in peekedFlows increasing its peekDeficit
+          // If current deficit is non-negative peek from it, but if no element is 
+          // obtained ignore the flow
+          if(pFlow->GetDeficit () <= 0)
+            {
+              pFlow->SetPeekDeficit (pFlow->GetDeficit () + m_quantum);
+              peekedFlows.push_back (pFlow);
+            }
+          else
+            {
+              Ptr<const QueueDiscItem> item = pFlow->GetQueueDisc ()->Peek ();  
+              if(item) 
+                return item;
+          }
+      }
+    }
+  // If the item is not yet found traverse peekedFlows
+  while(peekedFlows.size () > 0)
+    {
+      pFlow = peekedFlows.front ();
+      if(pFlow->GetPeekDeficit () <= 0)
+        {
+          pFlow->SetPeekDeficit (pFlow->GetPeekDeficit () + m_quantum);
+          peekedFlows.splice(peekedFlows.end (), peekedFlows, peekedFlows.begin ());
+        }
+      else
+        {
+          Ptr<const QueueDiscItem> item = pFlow->GetQueueDisc ()->Peek (); 
+          if(item)
+            return item;
+          else 
+            peekedFlows.pop_front ();
+        }
+    }
+
+  return 0;
+}
+
 bool
 FqCoDelQueueDisc::CheckConfig (void)
 {
@@ -455,6 +544,7 @@ FqCoDelQueueDisc::InitializeParams (void)
   m_queueDiscFactory.Set ("MaxSize", QueueSizeValue (GetMaxSize ()));
   m_queueDiscFactory.Set ("Interval", StringValue (m_interval));
   m_queueDiscFactory.Set ("Target", StringValue (m_target));
+  m_queueDiscFactory.Set ("PeekFunction", BooleanValue(GetPeekType ()));
 }
 
 uint32_t
