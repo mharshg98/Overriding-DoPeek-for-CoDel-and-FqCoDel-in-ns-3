@@ -223,8 +223,7 @@ private:
   uint16_t m_recInvSqrt;                  //!< Reciprocal inverse square root
   uint32_t m_firstAboveTime;              //!< Time to declare sojourn time above target
   TracedValue<uint32_t> m_dropNext;       //!< Time to drop next packet
-  Ptr<InternalQueue> peek_queue;          //!< Peek queue a clone of original internal queue
-  Ptr<InternalQueue> peek_queueBuffer;    //!< Peek queue buffer needed to stored the dequeued packets
+  std::list<Ptr<QueueDiscItem>> m_peekList; //!< Peek list to extract the next item to be dequeued
 };
 
 } // namespace ns3
